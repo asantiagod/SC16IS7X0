@@ -19,7 +19,8 @@
  *
  * @param crystalClock Frequence in Hz of the XTAL1
  */
-SC16IS7X0::SC16IS7X0(uint32_t xtalFreq) {
+SC16IS7X0::SC16IS7X0(uint32_t xtalFreq)
+{
   assert(xtalFreq > 0);
   _xtalFreq = xtalFreq;
 }
@@ -32,7 +33,8 @@ SC16IS7X0::SC16IS7X0(uint32_t xtalFreq) {
   @return true if initialization successful, otherwise false.
 */
 /**************************************************************************/
-bool SC16IS7X0::begin_SPI(uint8_t cs_pin, SPIClass *theSPI) {
+bool SC16IS7X0::begin_SPI(uint8_t cs_pin, SPIClass *theSPI)
+{
   spi_dev = new Adafruit_SPIDevice(cs_pin, 4000000, SPI_BITORDER_MSBFIRST,
                                    SPI_MODE0, theSPI);
   return spi_dev->begin();
@@ -44,7 +46,8 @@ bool SC16IS7X0::begin_SPI(uint8_t cs_pin, SPIClass *theSPI) {
  * @param baudrate Desired baudrate
  * @param config Serial configuration
  */
-void SC16IS7X0::begin_UART(unsigned long baudrate, SerialConfig config) {
+void SC16IS7X0::begin_UART(unsigned long baudrate, SerialConfig config)
+{
   // Enable enhanced function to be able to change the clock prescaler
   enableEnhancedFunctions();
   // Enable embedded 64 bytes FIFO for RX and TX
@@ -57,65 +60,9 @@ void SC16IS7X0::begin_UART(unsigned long baudrate, SerialConfig config) {
   enableTCR_TLR();
 
   // Read SerialConfig
-  uint8_t wordLength = 0x00;
-  uint8_t stopBits = 0x00;
-  uint8_t parity = 0x00;
-
-  // Word Length
-  switch (config & UART_NB_BIT_MASK) {
-    case UART_NB_BIT_5:
-      wordLength = 0x00;
-      break;
-
-    case UART_NB_BIT_6:
-      wordLength = 0x01;
-      break;
-
-    case UART_NB_BIT_7:
-      wordLength = 0x02;
-      break;
-
-    case UART_NB_BIT_8:
-      wordLength = 0x03;
-      break;
-  }
-
-  // Parity
-  switch (config & UART_PARITY_MASK) {
-    case UART_PARITY_EVEN:
-      parity = 0x18;
-      break;
-
-    case UART_PARITY_ODD:
-      parity = 0x08;
-      break;
-
-    case UART_PARITY_NONE:
-      parity = 0x00;
-      break;
-  }
-
-  // Stop bits
-  switch (config & UART_NB_STOP_BIT_MASK) {
-    case UART_NB_STOP_BIT_0:
-      // Not applicable
-      break;
-
-    case UART_NB_STOP_BIT_15:
-      // Work only with word length 5
-      stopBits = 0x04;
-      break;
-
-    case UART_NB_STOP_BIT_1:
-      // Work only with word length 5, 6, 7, 8
-      stopBits = 0x00;
-      break;
-
-    case UART_NB_STOP_BIT_2:
-      // Work only with word length 6, 7, 8
-      stopBits = 0x04;
-      break;
-  }
+  uint8_t wordLength = getWordLength(config);
+  uint8_t stopBits = getStopBits(config);
+  uint8_t parity = getParity(config);
 
   // Create LCR Register value
   _lcr = 0x00;
@@ -133,7 +80,8 @@ void SC16IS7X0::begin_UART(unsigned long baudrate, SerialConfig config) {
  *
  * @param baudrate new baudrate value in Hz. max 5MHz
  */
-void SC16IS7X0::updateBaudRate(unsigned long baudrate) {
+void SC16IS7X0::updateBaudRate(unsigned long baudrate)
+{
   assert(baudrate > 0 && baudrate <= 5000000);
 
   /**
@@ -162,21 +110,26 @@ void SC16IS7X0::updateBaudRate(unsigned long baudrate) {
   // Serial.println(remainder4);
 
   uint8_t lastTry = false;
-  if (divisor1 == 0 || divisor1 > 0xFFFF) {
+  if (divisor1 == 0 || divisor1 > 0xFFFF)
+  {
     // Bad divisor
     lastTry = true;
-  } else if (remainder1 == 0) {
+  }
+  else if (remainder1 == 0)
+  {
     // Perfect match
     writeDivisorAndPrescaler(divisor1, DIVIDE_BY_1);
     return;
   }
 
   // Second try with /4 prescaler
-  if (divisor4 == 0 || divisor4 > 0xFFFF) {
+  if (divisor4 == 0 || divisor4 > 0xFFFF)
+  {
     // Bad divisor
 
     // No other possibility
-    if (lastTry) return;
+    if (lastTry)
+      return;
 
     writeDivisorAndPrescaler(divisor1, DIVIDE_BY_1);
     return;
@@ -195,7 +148,8 @@ void SC16IS7X0::updateBaudRate(unsigned long baudrate) {
  * @brief Enable enhanced functions
  *
  */
-void SC16IS7X0::enableEnhancedFunctions(void) {
+void SC16IS7X0::enableEnhancedFunctions(void)
+{
   uint8_t request[2];
 
   // Set LCR Register to 0xBF to access Enhanced register set
@@ -219,7 +173,8 @@ void SC16IS7X0::enableEnhancedFunctions(void) {
  * @brief Enable TX and RX 64 bytes FIFO
  *
  */
-void SC16IS7X0::enableFIFO(void) {
+void SC16IS7X0::enableFIFO(void)
+{
   uint8_t request[2];
 
   request[0] = SC16IS7X0_FCR << 3;
@@ -231,7 +186,8 @@ void SC16IS7X0::enableFIFO(void) {
  * @brief Enable internal loopback mode
  *
  */
-void SC16IS7X0::enableLoopback(void) {
+void SC16IS7X0::enableLoopback(void)
+{
   uint8_t request[2];
 
   _mcr |= 0x01 << 4;
@@ -246,7 +202,8 @@ void SC16IS7X0::enableLoopback(void) {
  * @brief Disable internal loopback mode
  *
  */
-void SC16IS7X0::disableLoopback(void) {
+void SC16IS7X0::disableLoopback(void)
+{
   uint8_t request[2];
 
   _mcr &= ~(0x01 << 4);
@@ -261,7 +218,8 @@ void SC16IS7X0::disableLoopback(void) {
  * @brief Enable TCR+TLR register
  *
  */
-void SC16IS7X0::enableTCR_TLR(void) {
+void SC16IS7X0::enableTCR_TLR(void)
+{
   uint8_t request[2];
 
   _mcr |= 0x01 << 2;
@@ -276,7 +234,8 @@ void SC16IS7X0::enableTCR_TLR(void) {
  * @brief Disable TCR+TLR register
  *
  */
-void SC16IS7X0::disableTCR_TLR(void) {
+void SC16IS7X0::disableTCR_TLR(void)
+{
   uint8_t request[2];
 
   _mcr &= ~(0x01 << 2);
@@ -294,13 +253,17 @@ void SC16IS7X0::disableTCR_TLR(void) {
  * @param prescaler DIVIDE_BY_1 or DIVIDE_BY_4
  */
 void SC16IS7X0::writeDivisorAndPrescaler(uint32_t divisor,
-                                         Prescaler prescaler) {
+                                         Prescaler prescaler)
+{
   uint8_t request[2];
 
   // Change clock divisor bit
-  if (prescaler == DIVIDE_BY_1) {
+  if (prescaler == DIVIDE_BY_1)
+  {
     _mcr &= ~(0b10000000);
-  } else if (prescaler == DIVIDE_BY_4) {
+  }
+  else if (prescaler == DIVIDE_BY_4)
+  {
     _mcr |= 0b10000000;
   }
 
@@ -337,9 +300,11 @@ void SC16IS7X0::writeDivisorAndPrescaler(uint32_t divisor,
  * @return size_t Return 1 if the byte has been pushed into the FIFO otherwise 0
  * if the FIFO was full.
  */
-size_t SC16IS7X0::write(uint8_t c) {
+size_t SC16IS7X0::write(uint8_t c)
+{
   uint8_t free = txlvl();
-  if (free < 1) return 0;
+  if (free < 1)
+    return 0;
 
   uint8_t request[2] = {(SC16IS7X0_THR << 3), c};
   spi_dev->write(request, 2);
@@ -355,11 +320,14 @@ size_t SC16IS7X0::write(uint8_t c) {
  * @return size_t Return the number of bytes pushed into the FIFO. Can be less
  * than size.
  */
-size_t SC16IS7X0::write(const uint8_t *buffer, size_t size) {
+size_t SC16IS7X0::write(const uint8_t *buffer, size_t size)
+{
   size_t free = (size_t)txlvl();
-  if (free < size) size = free;
+  if (free < size)
+    size = free;
 
-  if (size == 0) return 0;
+  if (size == 0)
+    return 0;
 
   uint8_t request[1] = {SC16IS7X0_THR << 3};
   spi_dev->write(buffer, size, request, 1);
@@ -371,11 +339,92 @@ size_t SC16IS7X0::write(const uint8_t *buffer, size_t size) {
  *
  * @return uint8_t
  */
-uint8_t SC16IS7X0::txlvl(void) {
+uint8_t SC16IS7X0::txlvl(void)
+{
   uint8_t request[1] = {(SC16IS7X0_TXLVL << 3) | SC16IS7X0_READ_FLAG};
   uint8_t txlvl;
   spi_dev->write_then_read(request, 1, &txlvl, 1);
   return txlvl;
+}
+
+uint8_t SC16IS7X0::getWordLength(SerialConfig config)
+{
+  uint8_t wordLength;
+
+  // Word Length
+  switch (config & UART_NB_BIT_MASK)
+  {
+  case UART_NB_BIT_5:
+    wordLength = 0x00;
+    break;
+
+  case UART_NB_BIT_6:
+    wordLength = 0x01;
+    break;
+
+  case UART_NB_BIT_7:
+    wordLength = 0x02;
+    break;
+
+  case UART_NB_BIT_8:
+    wordLength = 0x03;
+    break;
+  }
+
+  return wordLength;
+}
+
+uint8_t SC16IS7X0::getParity(SerialConfig config)
+{
+  uint8_t parity;
+
+  switch (config & UART_PARITY_MASK)
+  {
+  case UART_PARITY_EVEN:
+    parity = 0x18;
+    break;
+
+  case UART_PARITY_ODD:
+    parity = 0x08;
+    break;
+
+  case UART_PARITY_NONE:
+    parity = 0x00;
+    break;
+  }
+
+  return parity;
+}
+
+uint8_t SC16IS7X0::getStopBits(SerialConfig config)
+{
+  uint8_t stopBits = 0x00;
+
+  // Stop bits
+  switch (config & UART_NB_STOP_BIT_MASK)
+  {
+#ifdef ESP8266
+  case UART_NB_STOP_BIT_0:
+    // Not applicable
+    break;
+
+  case UART_NB_STOP_BIT_15:
+    // Work only with word length 5
+    stopBits = 0x04;
+    break;
+#endif
+  case UART_NB_STOP_BIT_1:
+    // Work only with word length 5, 6, 7, 8
+    stopBits = 0x00;
+    break;
+
+  case UART_NB_STOP_BIT_2:
+    // Work only with word length 6, 7, 8
+    stopBits = 0x04;
+    break;
+  }
+
+  return stopBits;
 }
 
 /**
@@ -383,7 +432,8 @@ uint8_t SC16IS7X0::txlvl(void) {
  *
  * @return int
  */
-int SC16IS7X0::available(void) {
+int SC16IS7X0::available(void)
+{
   uint8_t request[1] = {(SC16IS7X0_RXLVL << 3) | SC16IS7X0_READ_FLAG};
   uint8_t rxlvl;
   spi_dev->write_then_read(request, 1, &rxlvl, 1);
@@ -395,8 +445,10 @@ int SC16IS7X0::available(void) {
  *
  * @return int
  */
-int SC16IS7X0::read(void) {
-  if (available() == 0) return -1;
+int SC16IS7X0::read(void)
+{
+  if (available() == 0)
+    return -1;
 
   uint8_t request[1] = {(SC16IS7X0_RHR << 3) | SC16IS7X0_READ_FLAG};
   uint8_t val;
@@ -411,11 +463,18 @@ int SC16IS7X0::read(void) {
  * @param len Number of bytes to read
  * @return int Return the real size of data that has been read
  */
-int SC16IS7X0::read(uint8_t *buffer, size_t len) {
+#ifndef ESP32
+int SC16IS7X0::read(uint8_t *buffer, size_t len)
+#else
+size_t SC16IS7X0::readBytes(uint8_t *buffer, size_t len)
+#endif
+{
   size_t a = (size_t)available();
-  if (a < len) len = a;
+  if (a < len)
+    len = a;
 
-  if (len == 0) return 0;
+  if (len == 0)
+    return 0;
 
   uint8_t request[1] = {(SC16IS7X0_RHR << 3) | SC16IS7X0_READ_FLAG};
   spi_dev->write_then_read(request, 1, buffer, len);
@@ -428,7 +487,8 @@ int SC16IS7X0::read(uint8_t *buffer, size_t len) {
  * @return true overrun has occured
  * @return false no overrun
  */
-bool SC16IS7X0::hasOverrun(void) {
+bool SC16IS7X0::hasOverrun(void)
+{
   uint8_t request[1] = {(SC16IS7X0_LSR << 3) | SC16IS7X0_READ_FLAG};
   uint8_t lsr;
   spi_dev->write_then_read(request, 1, &lsr, 1);
@@ -443,7 +503,8 @@ bool SC16IS7X0::hasOverrun(void) {
  * in the receiver FIFO
  * @return false No error in FIFO
  */
-bool SC16IS7X0::hasRxError(void) {
+bool SC16IS7X0::hasRxError(void)
+{
   uint8_t request[1] = {(SC16IS7X0_LSR << 3) | SC16IS7X0_READ_FLAG};
   uint8_t lsr;
   spi_dev->write_then_read(request, 1, &lsr, 1);
@@ -456,7 +517,8 @@ bool SC16IS7X0::hasRxError(void) {
  * Transmission will stop when a high signal is detected on the CTS pin
  *
  */
-void SC16IS7X0::enableHardwareCTS(void) {
+void SC16IS7X0::enableHardwareCTS(void)
+{
   uint8_t request[2];
 
   // Set LCR Register to 0xBF to access Enhanced register set
@@ -480,7 +542,8 @@ void SC16IS7X0::enableHardwareCTS(void) {
  * @brief Disable Hardware CTS Flow Control
  *
  */
-void SC16IS7X0::disableHardwareCTS(void) {
+void SC16IS7X0::disableHardwareCTS(void)
+{
   uint8_t request[2];
 
   // Set LCR Register to 0xBF to access Enhanced register set
@@ -506,7 +569,8 @@ void SC16IS7X0::disableHardwareCTS(void) {
  * RTS pin goes low when the 'resume transmission trigger level' is reached
  *
  */
-void SC16IS7X0::enableHardwareRTS(void) {
+void SC16IS7X0::enableHardwareRTS(void)
+{
   uint8_t request[2];
 
   // TCR[7:4] Trigger level to resume transmission (set to 2h = 2x4 -> 8
@@ -537,7 +601,8 @@ void SC16IS7X0::enableHardwareRTS(void) {
  * @brief Disable Hardware RTS Flow Control
  *
  */
-void SC16IS7X0::disableHardwareRTS(void) {
+void SC16IS7X0::disableHardwareRTS(void)
+{
   uint8_t request[2];
 
   // Set LCR Register to 0xBF to access Enhanced register set
@@ -563,21 +628,23 @@ void SC16IS7X0::disableHardwareRTS(void) {
  * @param pin pin number from 0 to 7
  * @param mode INPUT or OUTPUT
  */
-void SC16IS7X0::pinMode(uint8_t pin, uint8_t mode) {
+void SC16IS7X0::pinMode(uint8_t pin, uint8_t mode)
+{
   assert(pin <= 7);
   assert(mode == INPUT || mode == OUTPUT);
 
-  switch (mode) {
-    case OUTPUT:
-      _ioDir |= 0x01 << pin;
-      break;
+  switch (mode)
+  {
+  case OUTPUT:
+    _ioDir |= 0x01 << pin;
+    break;
 
-    case INPUT:
-      _ioDir &= ~(0x01 << pin);
-      break;
+  case INPUT:
+    _ioDir &= ~(0x01 << pin);
+    break;
 
-    default:
-      return;
+  default:
+    return;
   }
 
   // Write IoDir Register
@@ -591,7 +658,8 @@ void SC16IS7X0::pinMode(uint8_t pin, uint8_t mode) {
  * @param pin Pin number from 0 to 7
  * @param val 0=low, other value = high
  */
-void SC16IS7X0::digitalWrite(uint8_t pin, uint8_t val) {
+void SC16IS7X0::digitalWrite(uint8_t pin, uint8_t val)
+{
   assert(pin <= 7);
 
   if (val != 0)
@@ -610,7 +678,8 @@ void SC16IS7X0::digitalWrite(uint8_t pin, uint8_t val) {
  * @param pin Pin number from 0 to 7
  * @return int 0=input low, 1=input high
  */
-int SC16IS7X0::digitalRead(uint8_t pin) {
+int SC16IS7X0::digitalRead(uint8_t pin)
+{
   assert(pin <= 7);
 
   const uint8_t request[2] = {(SC16IS7X0_IOSTATE << 3) | SC16IS7X0_READ_FLAG};

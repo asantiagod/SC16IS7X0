@@ -21,6 +21,6 @@
   },
   "license": "MIT",
   "frameworks": "arduino",
-  "platforms": "espressif8266",
+  "platforms": "espressif8266, espressif32",
   "headers": ["SC16IS7X0.h"]
 }
