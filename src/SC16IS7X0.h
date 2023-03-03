@@ -17,12 +17,7 @@ public:
 
   bool begin_SPI(uint8_t cs_pin, SPIClass *theSPI = &SPI);
   bool begin_I2C(uint8_t addr, TwoWire *theWire = &Wire);
-
-  void begin_UART(unsigned long baudrate)
-  {
-    begin_UART(baudrate, SERIAL_8N1);
-  };
-  void begin_UART(unsigned long baudrate, SerialConfig config);
+  void begin_UART(unsigned long baudrate, SerialConfig config = SERIAL_8N1);
 
   void updateBaudRate(unsigned long baudrate);
 

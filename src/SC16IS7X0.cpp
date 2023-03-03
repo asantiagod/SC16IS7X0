@@ -50,6 +50,9 @@ bool SC16IS7X0::begin_SPI(uint8_t cs_pin, SPIClass *theSPI)
  * @param theWire Pointer to I2C instance
  * @return true   Initialization was successful
  * @return false  Initialization failed
+ * 
+ * @warning The addresses showed in the table 32 of the 
+ *          data-sheet must be right-shifted one bite 
  */
 bool SC16IS7X0::begin_I2C(uint8_t addr, TwoWire *theWire)
 {
