@@ -7,6 +7,7 @@
 
 #include "Stream.h"
 #include "SC16IS7X0_defines.h"
+#include "SC16IS7X0_BusIo.h"
 
 class SC16IS7X0 : public Stream
 {
@@ -15,8 +16,12 @@ public:
   virtual ~SC16IS7X0() {}
 
   bool begin_SPI(uint8_t cs_pin, SPIClass *theSPI = &SPI);
+  bool begin_I2C(uint8_t addr, TwoWire *theWire = &Wire);
 
-  void begin_UART(unsigned long baudrate) { begin_UART(baudrate, SERIAL_8N1); };
+  void begin_UART(unsigned long baudrate)
+  {
+    begin_UART(baudrate, SERIAL_8N1);
+  };
   void begin_UART(unsigned long baudrate, SerialConfig config);
 
   void updateBaudRate(unsigned long baudrate);
@@ -24,6 +29,7 @@ public:
   int available(void) override;
   int peek(void) override { return -1; }
   int read(void) override;
+  void flush() override{/*TODO*/};
 
 #ifdef ESP8266
   int read(uint8_t *buffer, size_t len) override;
@@ -68,17 +74,19 @@ private:
   void enableTCR_TLR(void);
   void disableTCR_TLR(void);
   uint8_t txlvl(void);
+  bool setBusIo(SC16IS7X0_BusIo *theBusIo);
 
   static uint8_t getWordLength(SerialConfig config);
   static uint8_t getParity(SerialConfig config);
   static uint8_t getStopBits(SerialConfig config);
 
-  uint8_t _mcr = 0x00;
-  uint8_t _lcr = 0x03;
-  uint8_t _efr = 0x00;
+  uint8_t _mcr;
+  uint8_t _lcr;
+  uint8_t _efr;
   uint32_t _xtalFreq;
-  uint8_t _ioDir = 0x00;
-  uint8_t _ioState = 0x00;
+  uint8_t _ioDir;
+  uint8_t _ioState;
+  SC16IS7X0_BusIo *busIo;
 };
 
 #endif

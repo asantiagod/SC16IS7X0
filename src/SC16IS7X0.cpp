@@ -19,7 +19,12 @@
  *
  * @param crystalClock Frequence in Hz of the XTAL1
  */
-SC16IS7X0::SC16IS7X0(uint32_t xtalFreq)
+SC16IS7X0::SC16IS7X0(uint32_t xtalFreq) : _mcr(0x00),
+                                          _lcr(0x03),
+                                          _efr(0x00),
+                                          _ioDir(0x00),
+                                          _ioState(0x00),
+                                          busIo(nullptr)
 {
   assert(xtalFreq > 0);
   _xtalFreq = xtalFreq;
@@ -35,9 +40,20 @@ SC16IS7X0::SC16IS7X0(uint32_t xtalFreq)
 /**************************************************************************/
 bool SC16IS7X0::begin_SPI(uint8_t cs_pin, SPIClass *theSPI)
 {
-  spi_dev = new Adafruit_SPIDevice(cs_pin, 4000000, SPI_BITORDER_MSBFIRST,
-                                   SPI_MODE0, theSPI);
-  return spi_dev->begin();
+  return setBusIo(SC16IS7X0_BusIo::buildSPI(cs_pin, 4000000, SPI_BITORDER_MSBFIRST,
+                                     SPI_MODE0, theSPI));
+}
+
+/**
+ * @brief Initialize using of hardware I2C 
+ * @param addr    Address assigned to the I2C device
+ * @param theWire Pointer to I2C instance
+ * @return true   Initialization was successful
+ * @return false  Initialization failed
+ */
+bool SC16IS7X0::begin_I2C(uint8_t addr, TwoWire *theWire)
+{
+  return setBusIo(SC16IS7X0_BusIo::buildI2C(addr, theWire));
 }
 
 /**
@@ -70,7 +86,7 @@ void SC16IS7X0::begin_UART(unsigned long baudrate, SerialConfig config)
 
   // Write Register
   uint8_t request[2] = {SC16IS7X0_LCR << 3, _lcr};
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   updateBaudRate(baudrate);
 }
@@ -155,18 +171,18 @@ void SC16IS7X0::enableEnhancedFunctions(void)
   // Set LCR Register to 0xBF to access Enhanced register set
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = 0xBF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Write EFR Register to enable enhanced functions
   _efr |= (0x01 << 4);
   request[0] = SC16IS7X0_EFR << 3;
   request[1] = _efr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set back LCR Register value
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -179,7 +195,7 @@ void SC16IS7X0::enableFIFO(void)
 
   request[0] = SC16IS7X0_FCR << 3;
   request[1] = 0x01;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -195,7 +211,7 @@ void SC16IS7X0::enableLoopback(void)
   // Write MCR Register
   request[0] = SC16IS7X0_MCR << 3;
   request[1] = _mcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -211,7 +227,7 @@ void SC16IS7X0::disableLoopback(void)
   // Write MCR Register
   request[0] = SC16IS7X0_MCR << 3;
   request[1] = _mcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -227,7 +243,7 @@ void SC16IS7X0::enableTCR_TLR(void)
   // Write MCR Register
   request[0] = SC16IS7X0_MCR << 3;
   request[1] = _mcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -243,7 +259,7 @@ void SC16IS7X0::disableTCR_TLR(void)
   // Write MCR Register
   request[0] = SC16IS7X0_MCR << 3;
   request[1] = _mcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -270,27 +286,27 @@ void SC16IS7X0::writeDivisorAndPrescaler(uint32_t divisor,
   // Write MCR Register
   request[0] = SC16IS7X0_MCR << 3;
   request[1] = _mcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set LCR[7] bit to write to special registers LDD and LDH
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr | 0x80;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Write the most significant part of the divisor
   request[0] = SC16IS7X0_DLH << 3;
   request[1] = (divisor >> 8) & 0xFF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Write the least significant part of the divisor
   request[0] = SC16IS7X0_DLL << 3;
   request[1] = divisor & 0xFF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Reset LCR[7] bit
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -307,7 +323,7 @@ size_t SC16IS7X0::write(uint8_t c)
     return 0;
 
   uint8_t request[2] = {(SC16IS7X0_THR << 3), c};
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   return 1;
 }
@@ -330,7 +346,7 @@ size_t SC16IS7X0::write(const uint8_t *buffer, size_t size)
     return 0;
 
   uint8_t request[1] = {SC16IS7X0_THR << 3};
-  spi_dev->write(buffer, size, request, 1);
+  busIo->write(buffer, size, request, 1);
   return size;
 }
 
@@ -343,8 +359,20 @@ uint8_t SC16IS7X0::txlvl(void)
 {
   uint8_t request[1] = {(SC16IS7X0_TXLVL << 3) | SC16IS7X0_READ_FLAG};
   uint8_t txlvl;
-  spi_dev->write_then_read(request, 1, &txlvl, 1);
+  busIo->write_then_read(request, 1, &txlvl, 1);
   return txlvl;
+}
+
+bool SC16IS7X0::setBusIo(SC16IS7X0_BusIo *theBusIo)
+{
+  if (busIo)
+    delete busIo; // delete old instance
+  busIo = theBusIo;
+
+  if (busIo)
+    return true;
+  else
+    return false;
 }
 
 uint8_t SC16IS7X0::getWordLength(SerialConfig config)
@@ -436,7 +464,7 @@ int SC16IS7X0::available(void)
 {
   uint8_t request[1] = {(SC16IS7X0_RXLVL << 3) | SC16IS7X0_READ_FLAG};
   uint8_t rxlvl;
-  spi_dev->write_then_read(request, 1, &rxlvl, 1);
+  busIo->write_then_read(request, 1, &rxlvl, 1);
   return (int)rxlvl;
 }
 
@@ -452,7 +480,7 @@ int SC16IS7X0::read(void)
 
   uint8_t request[1] = {(SC16IS7X0_RHR << 3) | SC16IS7X0_READ_FLAG};
   uint8_t val;
-  spi_dev->write_then_read(request, 1, &val, 1);
+  busIo->write_then_read(request, 1, &val, 1);
   return (int)val;
 }
 
@@ -477,7 +505,7 @@ size_t SC16IS7X0::readBytes(uint8_t *buffer, size_t len)
     return 0;
 
   uint8_t request[1] = {(SC16IS7X0_RHR << 3) | SC16IS7X0_READ_FLAG};
-  spi_dev->write_then_read(request, 1, buffer, len);
+  busIo->write_then_read(request, 1, buffer, len);
   return (int)len;
 }
 
@@ -491,7 +519,7 @@ bool SC16IS7X0::hasOverrun(void)
 {
   uint8_t request[1] = {(SC16IS7X0_LSR << 3) | SC16IS7X0_READ_FLAG};
   uint8_t lsr;
-  spi_dev->write_then_read(request, 1, &lsr, 1);
+  busIo->write_then_read(request, 1, &lsr, 1);
 
   return (lsr & 0x02) ? true : false;
 }
@@ -507,7 +535,7 @@ bool SC16IS7X0::hasRxError(void)
 {
   uint8_t request[1] = {(SC16IS7X0_LSR << 3) | SC16IS7X0_READ_FLAG};
   uint8_t lsr;
-  spi_dev->write_then_read(request, 1, &lsr, 1);
+  busIo->write_then_read(request, 1, &lsr, 1);
 
   return (lsr & 0x80) ? true : false;
 }
@@ -524,18 +552,18 @@ void SC16IS7X0::enableHardwareCTS(void)
   // Set LCR Register to 0xBF to access Enhanced register set
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = 0xBF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set EFR[7] to enable Hardware CTS
   _efr |= (0x01 << 7);
   request[0] = SC16IS7X0_EFR << 3;
   request[1] = _efr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set back LCR Register value
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -549,18 +577,18 @@ void SC16IS7X0::disableHardwareCTS(void)
   // Set LCR Register to 0xBF to access Enhanced register set
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = 0xBF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Reset EFR[7] to enable Hardware CTS
   _efr &= ~(0x01 << 7);
   request[0] = SC16IS7X0_EFR << 3;
   request[1] = _efr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set back LCR Register value
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -578,23 +606,23 @@ void SC16IS7X0::enableHardwareRTS(void)
   // -> 40 characters) TCR[3:0] must be > TCR[7:4]
   request[0] = SC16IS7X0_TCR << 3;
   request[1] = 0x2A;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set LCR Register to 0xBF to access Enhanced register set
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = 0xBF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set EFR[6] to enable Hardware RTS
   _efr |= (0x01 << 6);
   request[0] = SC16IS7X0_EFR << 3;
   request[1] = _efr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set back LCR Register value
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -608,18 +636,18 @@ void SC16IS7X0::disableHardwareRTS(void)
   // Set LCR Register to 0xBF to access Enhanced register set
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = 0xBF;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Reset EFR[6] to enable Hardware RTS
   _efr &= ~(0x01 << 6);
   request[0] = SC16IS7X0_EFR << 3;
   request[1] = _efr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 
   // Set back LCR Register value
   request[0] = SC16IS7X0_LCR << 3;
   request[1] = _lcr;
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -649,7 +677,7 @@ void SC16IS7X0::pinMode(uint8_t pin, uint8_t mode)
 
   // Write IoDir Register
   const uint8_t request[2] = {(SC16IS7X0_IODIR << 3), _ioDir};
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -669,7 +697,7 @@ void SC16IS7X0::digitalWrite(uint8_t pin, uint8_t val)
 
   // Write IoState Register
   const uint8_t request[2] = {(SC16IS7X0_IOSTATE << 3), _ioState};
-  spi_dev->write(request, 2);
+  busIo->write(request, 2);
 }
 
 /**
@@ -684,6 +712,6 @@ int SC16IS7X0::digitalRead(uint8_t pin)
 
   const uint8_t request[2] = {(SC16IS7X0_IOSTATE << 3) | SC16IS7X0_READ_FLAG};
   uint8_t data;
-  spi_dev->write_then_read(request, 1, &data, 1);
+  busIo->write_then_read(request, 1, &data, 1);
   return data & (0x01 << pin) ? 1 : 0;
 }

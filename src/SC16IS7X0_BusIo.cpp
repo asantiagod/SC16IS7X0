@@ -1,4 +1,4 @@
-#include "SC16IS7X0_Stream.h"
+#include "SC16IS7X0_BusIo.h"
 
 SC16IS7X0_I2C::SC16IS7X0_I2C(uint8_t addr, TwoWire *theWire)
 {
